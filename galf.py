@@ -30,7 +30,7 @@ fps_draw = 20
 fps_draw_ratio = math.ceil(fps_sim/fps_draw)
 fps_text_ratio = 2
 
-MAX_SPEED =100
+MAX_SPEED =255
 MIN_SPEED =-MAX_SPEED
 P_TERM = 30 #3.5
 I_TERM = 0
@@ -322,13 +322,13 @@ class PIDTuningProblem(ElementwiseProblem):
 problem = PIDTuningProblem()
 
 algorithm = GA(
-    pop_size=20,
+    pop_size=100,
     eliminate_duplicates=True
 )
 
 res = minimize(problem,
                algorithm,
-               termination=('n_gen', 20),
+               termination=('n_gen', 100),
                seed=1,
                save_history=True,
                verbose=True)

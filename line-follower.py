@@ -6,6 +6,7 @@ import pygame
 import numpy as np
 from matplotlib import image
 from pygame.draw import line
+import time 
 
 black = (0, 0, 0)
 blue = (0, 0, 255)
@@ -16,17 +17,19 @@ fps_draw = 20
 fps_draw_ratio = math.ceil(fps_sim/fps_draw)
 fps_text_ratio = 2
 
-MAX_SPEED =100
+MAX_SPEED =255
 MIN_SPEED =-MAX_SPEED
 P_TERM = 11.109844913890136 #3.5
-I_TERM = 8.782786931726069
+I_TERM = 8
 D_TERM = 34.25090497134612 #12
 fator_erro = 1.0
 erroAnterior = 0
 somaErro = 0
+valorPID = 0
+somaValorPID = 0
 
 def pid_control_task(sensor_values):
-    global erroAnterior, somaErro
+    global erroAnterior, somaErro, valorPID, somaValorPID
     
     # Certifique-se de que temos exatamente 5 valores de sensor
     if len(sensor_values) != 5:
@@ -66,7 +69,8 @@ def pid_control_task(sensor_values):
     # Cálculo do PID
     valorPID = P_TERM * erro + D_TERM * (erro - erroAnterior) + I_TERM * somaErro
     erroAnterior = erro
-    
+		
+    somaValorPID += valorPID
     # Cálculo das velocidades
     if valorPID >= 0:
         velocidadeEsq = MAX_SPEED
@@ -180,8 +184,11 @@ class Robot:
 		
 	def automatic_control(self,sensors_values):
 		self.vl,self.vr = pid_control_task(sensors_values)
-
-
+		if abs(valorPID) > 1000:
+			self.px = 200
+			self.py = 180
+			self.radius = 30 
+			somaValorPID = 0
 
 def main():
 	pygame.init()
@@ -197,6 +204,10 @@ def main():
 	font = pygame.font.SysFont(None, 24)
 	screen.blit(image, (0, 0))
 	pygame.display.flip()
+	initial_positions = {
+		'circuit_1': (200, 180, 30, 20, 1),
+		'circuit_2': (230, 480, 30, 90, 1)
+	}
 
 	line_follower = Robot(200, 180, 30, 20, 1)  # initial position for circuit_1
 	# line_follower = Robot(230, 480, 30, 90, 1)  # initial position for circuit_2
@@ -206,7 +217,17 @@ def main():
 	cnt_draw = 0
 	cnt_text = 0
 	done = False
-	pos_2_value = lambda s:img_arr[int(s[0]),int(s[1])]
+	def pos_2_value(s):
+		
+		try:
+			return img_arr[int(s[0]), int(s[1])]
+		except IndexError:
+      # Resetar posição do robô quando sair dos limites
+			line_follower.__init__(*initial_positions['circuit_1'])
+			end_time = time.time()
+			somaValorPID = 0
+			return 0  # Retorna valor padrão
+
 	while done == False:
 		sensor_list = list(map(pos_2_value,line_follower.sensor_pos_list))
 		# print(list(sensor_list),line_follower.px,line_follower.py,rad_to_deg(line_follower.yaw),line_follower.vl,line_follower.vr)
@@ -223,9 +244,9 @@ def main():
 			line_follower.draw(screen)
 			rect_update_list[0].update(line_follower.px-max_shift,line_follower.py-max_shift,2*max_shift,2*max_shift)
 			if (cnt_text%fps_text_ratio==0):
-				screen.blit(font.render("left: "+str(line_follower.vl), True, black), (10,10))
-				screen.blit(font.render("right: "+str(line_follower.vr), True, black), (10,25))
-				screen.blit(font.render("dist: "+str(int(line_follower.dist)), True, black), (10,40))
+				screen.blit(font.render("left: "+str(line_follower.vl), True, white), (10,10))
+				screen.blit(font.render("right: "+str(line_follower.vr), True, white), (10,25))
+				screen.blit(font.render("dist: "+str(int(valorPID)), True, white), (10,40))
 				cnt_text = 0
 				pygame.display.update(rect_update_list)				
 			else:
