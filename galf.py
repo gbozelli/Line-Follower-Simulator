@@ -9,6 +9,10 @@ from pymoo.termination import get_termination
 import pygame
 import math
 import os
+from pymoo.operators.crossover.sbx import SBX
+from pymoo.operators.mutation.pm import PM
+from pymoo.termination import get_termination
+from pymoo.operators.selection.tournament import TournamentSelection
 # -*- coding: utf-8 -*-
 import math
 import time
@@ -39,10 +43,12 @@ fator_erro = 1.0
 erroAnterior = 0
 somaErro = 0
 valorPID = 0
+last_time = time.time()
 
 def pid_control_task(sensor_values):
-    global erroAnterior, somaErro, valorPID
-    
+    global erroAnterior, somaErro, valorPID, last_time
+    current_time = time.time()
+    delta_time = current_time - last_time
     # Certifique-se de que temos exatamente 5 valores de sensor
     if len(sensor_values) != 5:
         return MAX_SPEED, MAX_SPEED
@@ -65,7 +71,7 @@ def pid_control_task(sensor_values):
     somaErro += erro
     
     # Cálculo do PID (forma contínua)
-    valorPID = P_TERM * erro + D_TERM * (erro - erroAnterior) + I_TERM * somaErro
+    valorPID = P_TERM * erro + D_TERM * (erro - erroAnterior)/delta_time + I_TERM * somaErro
     erroAnterior = erro
     
     # Cálculo das velocidades
@@ -91,6 +97,7 @@ def rad_to_deg(theta):
 class Robot:
   # Constructor
   def __init__(self, x, y, R, yaw, scale, sensor_dist=0.85, sensor_gap=10):
+    self.effective_dist = 0
     self.px = x 	
     self.py = y
     self.radius = R*scale
@@ -149,6 +156,8 @@ class Robot:
         self.px + self.sensor_dist * math.cos(sensor_angle),
         self.py - self.sensor_dist * math.sin(sensor_angle)
         ]
+      
+    self.effective_dist += calculate_effective_distance(self)
 
   def manual_control(self,event):
     if (event.type == pygame.KEYDOWN):  
@@ -263,7 +272,19 @@ class LineFollowerSimulator:
         fitness = total_error / steps_on_track if steps_on_track > 0 else 1e6
         return fitness
 
-
+def calculate_effective_distance(robot):
+    # Calcula a velocidade linear (módulo da velocidade de translação)
+    linear_speed = math.sqrt((robot.vr + robot.vl)**2) / 2  # Módulo da velocidade média
+    
+    # Se a velocidade linear for muito baixa, consideramos que o robô está girando no lugar
+    if linear_speed < 5:  # Limiar pequeno para considerar movimento insignificante
+        return 0
+    
+    # Calcula o deslocamento neste passo de tempo
+    delta_time = 1/fps_sim
+    displacement = linear_speed * delta_time
+    
+    return displacement
 
 # Função de simulação simplificada (você pode adaptar com mais realismo)
 # Classe de problema para pymoo
@@ -287,14 +308,16 @@ def run_simulation(kp, ki, kd):
     img_arr = np.maximum(img_arr, 0)
 
     # Configuração do robô
-    line_follower = Robot(200, 180, 30, 20, 1)
+    line_follower = Robot(260, 290, 30, 90, 1) 
     max_shift = math.ceil(MAX_SPEED / fps_draw) + line_follower.radius + line_follower.wheel_w + 2
     rect_update_list = [pygame.Rect(line_follower.px - max_shift, line_follower.py - max_shift, 2 * max_shift, 2 * max_shift),
                         pygame.Rect(10, 10, 90, 55)]
     initial_positions = {
-        'circuit_1': (200, 180, 30, 20, 1),
-        'circuit_2': (230, 480, 30, 90, 1)
+      'circuit_1': (260, 290, 30, 90, 1),
+      'circuit_2': (230, 480, 30, 90, 1)
     }
+
+  
     start_time = time.time()
     max_steps = 1000  # Número máximo de passos
     
@@ -318,27 +341,26 @@ def run_simulation(kp, ki, kd):
             
     end_time = time.time()
     elapsed_time = end_time - start_time
-
+    
     # Retorna uma tupla com: (tempo, erro acumulado, deslocamento)
     # Queremos maximizar o tempo, minimizar o erro acumulado e maximizar o deslocamento
-    return elapsed_time, line_follower.dist
+    return elapsed_time, line_follower.effective_dist
 
 class PIDTuningProblem(ElementwiseProblem):
     def __init__(self):
         super().__init__(n_var=3,
                          n_obj=2,  # Agora temos três objetivos
                          n_constr=0,
-                         xl=np.array([0.0, 0.0, 0.0]),  # limites inferiores: kp, ki, kd
-                         xu=np.array([100.0, 100.0, 100.0]))  # limites superiores
+                         xl=np.array([10.0, 0.0, 10.0]),  # limites inferiores: kp, ki, kd
+                         xu=np.array([20.0, 1.0, 40.0]))  # limites superiores
 
     def _evaluate(self, x, out, *args, **kwargs):
         kp, ki, kd = x
         time, distance = run_simulation(kp, ki, kd)
-        
-        # Objetivos:
-        # 1. Maximizar o tempo (transformamos em minimizar o negativo)
-        # 2. Minimizar o erro acumulado
-        # 3. Maximizar o deslocamento (transformamos em minimizar o negativo)
+        print(10*time)
+        print('kp:',kp)
+        print('ki:',ki)
+        print('kd:',kd)
         out["F"] = [-time,-distance]
 
 def run_optimization():
@@ -347,12 +369,14 @@ def run_optimization():
     # Usamos NSGA2 para otimização multiobjetivo
     from pymoo.algorithms.moo.nsga2 import NSGA2
     algorithm = NSGA2(
-        pop_size=1000,
-        eliminate_duplicates=True
+        pop_size=100,
+        eliminate_duplicates=True,
+        crossover=SBX(prob=0.9, eta=10),
+        mutation=PM(eta=5)
     )
     
     # Configuramos critérios de parada
-    termination = get_termination("n_gen", 100)
+    termination = get_termination("n_gen", 10)
     
     res = minimize(problem,
                    algorithm,

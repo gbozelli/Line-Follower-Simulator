@@ -17,20 +17,22 @@ fps_draw = 20
 fps_draw_ratio = math.ceil(fps_sim/fps_draw)
 fps_text_ratio = 2
 
-MAX_SPEED =255
+MAX_SPEED = 200
 MIN_SPEED =-MAX_SPEED
-P_TERM = 8 #3.5
-I_TERM = 0.1
-D_TERM = 57 #12
+P_TERM = 11.4 #3.5
+I_TERM = 0.2
+D_TERM = 33 #12
 fator_erro = 1.0
 erroAnterior = 0
 somaErro = 0
 valorPID = 0
 somaValorPID = 0
+last_time = time.time()
 
 def pid_control_task(sensor_values):
-    global erroAnterior, somaErro, valorPID
-    
+    global erroAnterior, somaErro, valorPID, last_time
+    current_time = time.time()
+    delta_time = current_time - last_time
     # Certifique-se de que temos exatamente 5 valores de sensor
     if len(sensor_values) != 5:
         return MAX_SPEED, MAX_SPEED
@@ -53,7 +55,7 @@ def pid_control_task(sensor_values):
     somaErro += erro
     
     # Cálculo do PID (forma contínua)
-    valorPID = P_TERM * erro + D_TERM * (erro - erroAnterior) + I_TERM * somaErro
+    valorPID = P_TERM * erro + D_TERM * (erro - erroAnterior)/delta_time + I_TERM * somaErro
     erroAnterior = erro
     
     # Cálculo das velocidades
@@ -190,11 +192,11 @@ def main():
   screen.blit(image, (0, 0))
   pygame.display.flip()
   initial_positions = {
-    'circuit_1': (200, 180, 30, 20, 1),
+    'circuit_1': (260, 290, 30, 90, 1),
     'circuit_2': (230, 480, 30, 90, 1)
   }
 
-  line_follower = Robot(200, 180, 30, 20, 1)  # initial position for circuit_1
+  line_follower = Robot(260, 290, 30, 90, 1)  # initial position for circuit_1
   # line_follower = Robot(230, 480, 30, 90, 1)  # initial position for circuit_2
   max_shift = math.ceil(MAX_SPEED/fps_draw)+line_follower.radius+line_follower.wheel_w+2
   rect_update_list = [pygame.Rect(line_follower.px-max_shift,line_follower.py-max_shift,2*max_shift,2*max_shift),pygame.Rect(10,10,90,55)]
