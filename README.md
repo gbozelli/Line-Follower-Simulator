@@ -20,7 +20,7 @@ O objetivo da otimização é encontrar parâmetros que permitam **completar a p
 
 ## Requisitos
 
-- Python 3.3 ou superior
+- Python 3.x 
 - Pymoo
 - Matplotlib
 - NumPy
@@ -53,15 +53,11 @@ python line-follower.py
 3. Commit suas alterações:
 
 ```bash
-Copiar
-Editar
 git commit -m "Adiciona nova funcionalidade X"
 ```
 4. Envie para o seu fork:
 
 ```bash
-Copiar
-Editar
 git push origin minha-feature
 ```
 5. Abra um Pull Request explicando claramente suas mudanças.
