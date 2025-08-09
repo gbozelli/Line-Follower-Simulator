@@ -408,7 +408,6 @@ def run_optimization():
     
     return res.X[best_idx]  # Retorna os melhores parâmetros encontrados
 
-# ... (restante do código permanece o mesmo)
 import threading
 
 def main():
